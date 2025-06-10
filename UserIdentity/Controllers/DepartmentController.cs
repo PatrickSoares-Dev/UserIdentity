@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using ConferenciaTelecall.Services.Interfaces;
 using UserIdentity.Models.DTOs.Department;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Logging;
 
 namespace ConferenciaTelecall.Controllers
 {
@@ -14,19 +15,23 @@ namespace ConferenciaTelecall.Controllers
     public class DepartmentsController : ControllerBase
     {
         private readonly IDepartmentService _departmentService;
+        private readonly ILogger<DepartmentsController> _logger;
 
-        public DepartmentsController(IDepartmentService departmentService)
+        public DepartmentsController(IDepartmentService departmentService, ILogger<DepartmentsController> logger)
         {
             _departmentService = departmentService;
+            _logger = logger;
         }
 
         // GET: api/department/getDepartment/{id}
         [HttpGet("getDepartment/{id}")]
         public async Task<IActionResult> GetDepartment(int id)
         {
+            _logger.LogInformation("Buscando departamento {Id}", id);
             var departmentDto = await _departmentService.GetDepartmentByIdAsync(id);
             if (departmentDto == null)
             {
+                _logger.LogWarning("Departamento {Id} nao encontrado", id);
                 return NotFound(new { status = "failed", message = "Departamento não encontrado." });
             }
 
@@ -37,10 +42,12 @@ namespace ConferenciaTelecall.Controllers
         [HttpGet("departments")]
         public async Task<IActionResult> GetAllDepartments()
         {
+            _logger.LogInformation("Listando departamentos");
             var departmentDtos = await _departmentService.GetAllDepartmentsAsync();
 
             if (departmentDtos == null || !departmentDtos.Any())
             {
+                _logger.LogWarning("Nenhum departamento encontrado");
                 return NotFound(new { status = "failed", message = "Nenhum departamento encontrado." });
             }
 
@@ -58,11 +65,14 @@ namespace ConferenciaTelecall.Controllers
 
             try
             {
+                _logger.LogInformation("Criando departamento {Nome}", departmentDto.Nome);
                 var createdDepartment = await _departmentService.CreateDepartmentAsync(departmentDto);
+                _logger.LogInformation("Departamento {Id} criado", createdDepartment.Id);
                 return CreatedAtAction(nameof(GetDepartment), new { id = createdDepartment.Id }, new { status = "success", data = createdDepartment });
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Erro ao criar departamento");
                 return StatusCode(500, new { status = "failed", message = "Erro ao criar departamento.", error = ex.Message });
             }
         }
@@ -78,11 +88,14 @@ namespace ConferenciaTelecall.Controllers
 
             try
             {
+                _logger.LogInformation("Atualizando departamento {Id}", departmentDto.Id);
                 await _departmentService.UpdateDepartmentAsync(departmentDto);
+                _logger.LogInformation("Departamento {Id} atualizado", departmentDto.Id);
                 return Ok(new { status = "success", data = departmentDto });
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Erro ao atualizar departamento {Id}", departmentDto.Id);
                 return StatusCode(500, new { status = "failed", message = "Erro ao atualizar departamento.", error = ex.Message });
             }
         }
@@ -98,17 +111,21 @@ namespace ConferenciaTelecall.Controllers
 
             try
             {
+                _logger.LogInformation("Deletando departamento {Id}", id);
                 var departmentDto = await _departmentService.GetDepartmentByIdAsync(id);
                 if (departmentDto == null)
                 {
+                    _logger.LogWarning("Departamento {Id} nao encontrado", id);
                     return NotFound(new { status = "failed", message = "Departamento não encontrado." });
                 }
 
                 await _departmentService.DeleteDepartmentAsync(id);
+                _logger.LogInformation("Departamento {Id} deletado", id);
                 return Ok(new { status = "success", message = "Departamento deletado com sucesso." });
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Erro ao deletar departamento {Id}", id);
                 return StatusCode(500, new { status = "failed", message = "Erro ao deletar departamento.", error = ex.Message });
             }
         }

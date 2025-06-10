@@ -5,6 +5,7 @@ using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using ConferenciaTelecall.Repositories.Interfaces;
 using ConferenciaTelecall.Models.Entities;
@@ -19,28 +20,35 @@ namespace ConferenciaTelecall.Services
     {
         private readonly IAuthRepository _repository;
         private readonly JwtSettings _jwtSettings;
+        private readonly ILogger<AuthService> _logger;
 
-        public AuthService(IAuthRepository repository, IOptions<JwtSettings> jwtOptions)
+        public AuthService(IAuthRepository repository, IOptions<JwtSettings> jwtOptions, ILogger<AuthService> logger)
         {
             _repository = repository;
             _jwtSettings = jwtOptions.Value;
+            _logger = logger;
         }
 
         public async Task<LoginResult> LoginAsync(string loginUsuario, string senha)
         {
+            _logger.LogInformation("Iniciando autenticacao para {Login}", loginUsuario);
             var usuario = _repository.ObterUsuarioPorLogin(loginUsuario);
             if (usuario == null)
             {
+                _logger.LogWarning("Usuario {Login} nao encontrado", loginUsuario);
                 return LoginResult.UsuarioNaoEncontrado;
             }
 
             bool senhaCorreta = BCrypt.Net.BCrypt.Verify(senha, usuario.SenhaHash);
             if (!senhaCorreta)
             {
+                _logger.LogWarning("Senha incorreta para usuario {Login}", loginUsuario);
                 return LoginResult.SenhaIncorreta;
             }
 
-            return usuario.Ativo ? LoginResult.Sucesso : LoginResult.PrimeiroLogin;
+            var result = usuario.Ativo ? LoginResult.Sucesso : LoginResult.PrimeiroLogin;
+            _logger.LogInformation("Resultado do login para {Login}: {Result}", loginUsuario, result);
+            return result;
         }
 
         public User GetUserByLogin(string loginUsuario)
@@ -70,6 +78,7 @@ namespace ConferenciaTelecall.Services
 
         public JwtTokenResult GenerateJwtToken(IEnumerable<Claim> claims)
         {
+            _logger.LogInformation("Gerando token JWT para usuario {User}", claims?.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value);
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.Key));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
             var expiration = DateTime.UtcNow.AddHours(6);

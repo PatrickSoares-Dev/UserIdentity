@@ -5,6 +5,7 @@ using System.Linq;
 using UserIdentity.Models.DTOs.User;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
+using Microsoft.Extensions.Logging;
 
 namespace ConferenciaTelecall.Controllers
 {
@@ -14,19 +15,21 @@ namespace ConferenciaTelecall.Controllers
     public class UserController : ControllerBase
     {
         private readonly IUserService _userService;
+        private readonly ILogger<UserController> _logger;
 
-        public UserController(IUserService userService)
+        public UserController(IUserService userService, ILogger<UserController> logger)
         {
             _userService = userService;
+            _logger = logger;
         }
 
-        // Método auxiliar para obter o departamento do usuário autenticado
+        // MÃ©todo auxiliar para obter o departamento do usuÃ¡rio autenticado
         private string GetUsuarioDepartamento()
         {
             return User.Claims.FirstOrDefault(c => c.Type == "Department")?.Value;
         }
 
-        // Método auxiliar para obter a role do usuário autenticado
+        // MÃ©todo auxiliar para obter a role do usuÃ¡rio autenticado
         private string GetUsuarioRole()
         {
             return User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
@@ -36,10 +39,12 @@ namespace ConferenciaTelecall.Controllers
         [HttpGet("getUser/{id}")]
         public async Task<IActionResult> GetUser(int id)
         {
+            _logger.LogInformation("Buscando usuario {Id}", id);
             var userInfo = await _userService.GetUserInfoAsync(id);
             if (userInfo == null)
             {
-                return NotFound(new { status = "failed", message = "Usuário não encontrado." });
+                _logger.LogWarning("Usuario {Id} nao encontrado", id);
+                return NotFound(new { status = "failed", message = "UsuÃ¡rio nÃ£o encontrado." });
             }
 
             return Ok(new { status = "success", data = userInfo });
@@ -49,11 +54,13 @@ namespace ConferenciaTelecall.Controllers
         [HttpGet("usuarios")]
         public async Task<IActionResult> GetAllUsers()
         {
+            _logger.LogInformation("Listando usuarios");
             var usuarios = await _userService.ObterTodosUsuariosAsync();
 
             if (usuarios == null || !usuarios.Any())
             {
-                return NotFound(new { status = "failed", message = "Nenhum usuário encontrado." });
+                _logger.LogWarning("Nenhum usuario encontrado");
+                return NotFound(new { status = "failed", message = "Nenhum usuÃ¡rio encontrado." });
             }
 
             var response = new
@@ -72,18 +79,21 @@ namespace ConferenciaTelecall.Controllers
         {
             if (!ModelState.IsValid)
             {
-                return BadRequest(new { status = "failed", message = "Dados inválidos.", errors = ModelState });
+                return BadRequest(new { status = "failed", message = "Dados invÃ¡lidos.", errors = ModelState });
             }
 
             try
             {
+                _logger.LogInformation("Criando usuario {Login}", userDto.LoginUsuario);
                 userDto.Nome = userDto.Nome.ToUpperInvariant();
                 var newUser = await _userService.CreateUserAsync(userDto);
+                _logger.LogInformation("Usuario {Id} criado", newUser.Id);
                 return CreatedAtAction(nameof(GetUser), new { id = newUser.Id }, new { status = "success", data = newUser });
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { status = "failed", message = "Erro ao criar usuário.", error = ex.Message });
+                _logger.LogError(ex, "Erro ao criar usuario");
+                return StatusCode(500, new { status = "failed", message = "Erro ao criar usuÃ¡rio.", error = ex.Message });
             }
         }
 
@@ -93,13 +103,15 @@ namespace ConferenciaTelecall.Controllers
         {
             if (!ModelState.IsValid)
             {
-                return BadRequest(new { status = "failed", message = "Dados inválidos.", errors = ModelState });
+                return BadRequest(new { status = "failed", message = "Dados invÃ¡lidos.", errors = ModelState });
             }
 
             try
             {
+                _logger.LogInformation("Criando usuario completo {Login}", userDto.LoginUsuario);
                 var newUser = await _userService.CreateCompleteUserAsync(userDto);
 
+                _logger.LogInformation("Usuario completo {Id} criado", newUser.Id);
                 return CreatedAtAction(nameof(GetUser), new { id = newUser.Id }, new
                 {
                     status = "success",
@@ -124,7 +136,8 @@ namespace ConferenciaTelecall.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { status = "failed", message = "Erro ao criar usuário.", error = ex.Message });
+                _logger.LogError(ex, "Erro ao criar usuario completo");
+                return StatusCode(500, new { status = "failed", message = "Erro ao criar usuÃ¡rio.", error = ex.Message });
             }
         }
 
@@ -134,19 +147,22 @@ namespace ConferenciaTelecall.Controllers
         {
             if (!ModelState.IsValid)
             {
-                return BadRequest(new { status = "failed", message = "Dados inválidos.", errors = ModelState.Values.SelectMany(v => v.Errors) });
+                return BadRequest(new { status = "failed", message = "Dados invÃ¡lidos.", errors = ModelState.Values.SelectMany(v => v.Errors) });
             }
 
             try
             {
+                _logger.LogInformation("Atualizando usuario {Id}", userDto.Id);
                 var updatedUser = await _userService.UpdateUserAsync(userDto);
+                _logger.LogInformation("Usuario {Id} atualizado", userDto.Id);
                 return Ok(new { status = "success", data = updatedUser });
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { status = "failed", message = "Erro ao atualizar usuário.", error = ex.Message });
+                _logger.LogError(ex, "Erro ao atualizar usuario {Id}", userDto.Id);
+                return StatusCode(500, new { status = "failed", message = "Erro ao atualizar usuÃ¡rio.", error = ex.Message });
             }
-        }       
+        }
 
         // POST: api/user/change-password
         [HttpPost("change-password")]
@@ -154,11 +170,12 @@ namespace ConferenciaTelecall.Controllers
         {
             if (!ModelState.IsValid)
             {
-                return BadRequest(new { status = "failed", message = "Dados inválidos." });
+                return BadRequest(new { status = "failed", message = "Dados invÃ¡lidos." });
             }
 
             try
             {
+                _logger.LogInformation("Alterando senha do usuario {Id}", changePasswordDto.UserId);
                 bool sucesso = await _userService.ChangePasswordAsync(changePasswordDto.UserId, changePasswordDto.NewPassword);
                 if (sucesso)
                 {
@@ -171,6 +188,7 @@ namespace ConferenciaTelecall.Controllers
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Erro ao alterar senha do usuario {Id}", changePasswordDto.UserId);
                 return StatusCode(500, new { status = "failed", message = "Erro ao alterar senha.", error = ex.Message });
             }
         }
@@ -181,30 +199,34 @@ namespace ConferenciaTelecall.Controllers
         {
             if (id <= 0)
             {
-                return BadRequest(new { status = "failed", message = "ID de usuário inválido." });
+                return BadRequest(new { status = "failed", message = "ID de usuÃ¡rio invÃ¡lido." });
             }
 
             try
             {
+                _logger.LogInformation("Deletando usuario {Id}", id);
                 var usuarioParaDeletar = await _userService.GetUserByIdAsync(id);
                 if (usuarioParaDeletar == null)
                 {
-                    return NotFound(new { status = "failed", message = "Usuário não encontrado." });
+                    _logger.LogWarning("Usuario {Id} nao encontrado", id);
+                    return NotFound(new { status = "failed", message = "UsuÃ¡rio nÃ£o encontrado." });
                 }
 
                 bool sucesso = await _userService.DeletarUsuarioAsync(id);
                 if (sucesso)
                 {
-                    return Ok(new { status = "success", message = "Usuário deletado com sucesso." });
+                    _logger.LogInformation("Usuario {Id} deletado", id);
+                    return Ok(new { status = "success", message = "UsuÃ¡rio deletado com sucesso." });
                 }
                 else
                 {
-                    return StatusCode(500, new { status = "failed", message = "Erro ao deletar usuário." });
+                    return StatusCode(500, new { status = "failed", message = "Erro ao deletar usuÃ¡rio." });
                 }
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { status = "failed", message = "Erro ao deletar usuário.", error = ex.Message });
+                _logger.LogError(ex, "Erro ao deletar usuario {Id}", id);
+                return StatusCode(500, new { status = "failed", message = "Erro ao deletar usuÃ¡rio.", error = ex.Message });
             }
         }
     }
