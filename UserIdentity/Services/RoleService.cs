@@ -5,16 +5,19 @@ using ConferenciaTelecall.Models.Entities;
 using ConferenciaTelecall.Repositories.Interfaces;
 using ConferenciaTelecall.Services.Interfaces;
 using UserIdentity.Models.DTOs.Role;
+using Microsoft.Extensions.Logging;
 
 namespace ConferenciaTelecall.Services
 {
     public class RoleService : IRoleService
     {
         private readonly IRoleRepository _roleRepository;
+        private readonly ILogger<RoleService> _logger;
 
-        public RoleService(IRoleRepository roleRepository)
+        public RoleService(IRoleRepository roleRepository, ILogger<RoleService> logger)
         {
             _roleRepository = roleRepository;
+            _logger = logger;
         }
 
         public async Task<RoleDTO> GetRoleByIdAsync(int id)
@@ -31,12 +34,15 @@ namespace ConferenciaTelecall.Services
 
         public async Task<RoleDTO> CreateRoleAsync(RoleDTO roleDto)
         {
+            _logger.LogInformation("Criando role {Nome}", roleDto.Nome);
             var role = new Role
             {
                 Nome = roleDto.Nome.ToUpperInvariant(),
                 Descricao = roleDto.Descricao
             };
             await _roleRepository.CreateRoleAsync(role);
+
+            _logger.LogInformation("Role {Nome} criada com sucesso", roleDto.Nome);
 
             return MapToDTO(role);
         }
@@ -45,11 +51,13 @@ namespace ConferenciaTelecall.Services
         {
             var role = new Role { Id = roleDto.Id.Value, Nome = roleDto.Nome.ToUpperInvariant(), Descricao = roleDto.Descricao };
             await _roleRepository.UpdateRoleAsync(role);
+            _logger.LogInformation("Role {Id} atualizada", roleDto.Id);
         }
 
         public async Task DeleteRoleAsync(int id)
         {
             await _roleRepository.DeleteRoleAsync(id);
+            _logger.LogInformation("Role {Id} deletada", id);
         }
 
         private RoleDTO MapToDTO(Role role)

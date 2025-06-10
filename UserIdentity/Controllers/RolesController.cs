@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using ConferenciaTelecall.Services.Interfaces;
 using UserIdentity.Models.DTOs.Role;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Logging;
 
 namespace ConferenciaTelecall.Controllers
 {
@@ -14,19 +15,23 @@ namespace ConferenciaTelecall.Controllers
     public class RolesController : ControllerBase
     {
         private readonly IRoleService _roleService;
+        private readonly ILogger<RolesController> _logger;
 
-        public RolesController(IRoleService roleService)
+        public RolesController(IRoleService roleService, ILogger<RolesController> logger)
         {
             _roleService = roleService;
+            _logger = logger;
         }
 
         // GET: api/role/getRole/{id}
         [HttpGet("getRole/{id}")]
         public async Task<IActionResult> GetRole(int id)
         {
+            _logger.LogInformation("Buscando role {Id}", id);
             var roleDto = await _roleService.GetRoleByIdAsync(id);
             if (roleDto == null)
             {
+                _logger.LogWarning("Role {Id} nao encontrada", id);
                 return NotFound(new { status = "failed", message = "Role não encontrada." });
             }
 
@@ -37,10 +42,12 @@ namespace ConferenciaTelecall.Controllers
         [HttpGet("roles")]
         public async Task<IActionResult> GetAllRoles()
         {
+            _logger.LogInformation("Listando roles");
             var roleDtos = await _roleService.GetAllRolesAsync();
 
             if (roleDtos == null || !roleDtos.Any())
             {
+                _logger.LogWarning("Nenhuma role encontrada");
                 return NotFound(new { status = "failed", message = "Nenhuma role encontrada." });
             }
 
@@ -58,11 +65,14 @@ namespace ConferenciaTelecall.Controllers
 
             try
             {
+                _logger.LogInformation("Criando role {Nome}", roleDto.Nome);
                 var createdRole = await _roleService.CreateRoleAsync(roleDto);
+                _logger.LogInformation("Role {Id} criada", createdRole.Id);
                 return CreatedAtAction(nameof(GetRole), new { id = createdRole.Id }, new { status = "success", data = createdRole });
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Erro ao criar role");
                 return StatusCode(500, new { status = "failed", message = "Erro ao criar role.", error = ex.Message });
             }
         }
@@ -78,11 +88,14 @@ namespace ConferenciaTelecall.Controllers
 
             try
             {
+                _logger.LogInformation("Atualizando role {Id}", roleDto.Id);
                 await _roleService.UpdateRoleAsync(roleDto);
+                _logger.LogInformation("Role {Id} atualizada", roleDto.Id);
                 return Ok(new { status = "success", data = roleDto });
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Erro ao atualizar role {Id}", roleDto.Id);
                 return StatusCode(500, new { status = "failed", message = "Erro ao atualizar role.", error = ex.Message });
             }
         }
@@ -98,17 +111,21 @@ namespace ConferenciaTelecall.Controllers
 
             try
             {
+                _logger.LogInformation("Deletando role {Id}", id);
                 var roleDto = await _roleService.GetRoleByIdAsync(id);
                 if (roleDto == null)
                 {
+                    _logger.LogWarning("Role {Id} nao encontrada", id);
                     return NotFound(new { status = "failed", message = "Role não encontrada." });
                 }
 
                 await _roleService.DeleteRoleAsync(id);
+                _logger.LogInformation("Role {Id} deletada", id);
                 return Ok(new { status = "success", message = "Role deletada com sucesso." });
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Erro ao deletar role {Id}", id);
                 return StatusCode(500, new { status = "failed", message = "Erro ao deletar role.", error = ex.Message });
             }
         }
