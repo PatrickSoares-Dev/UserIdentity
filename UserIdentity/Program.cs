@@ -3,64 +3,30 @@ using ConferenciaTelecall.Repositories.Interfaces;
 using ConferenciaTelecall.Repositories;
 using ConferenciaTelecall.Services.Interfaces;
 using ConferenciaTelecall.Services;
+using ConferenciaTelecall.Extensions;
+using ConferenciaTelecall.Models.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.Diagnostics;
 using System.Text;
-using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("NEXTONE_BRASILConnectionString")));
 
-builder.Services.AddScoped<IUserSystemRoleRepository, UserSystemRoleRepository>();
-
-builder.Services.AddScoped<ISystemService, SystemService>();
-builder.Services.AddScoped<ISystemRepository, SystemRepository>();
+builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("Jwt"));
 
 builder.Services.AddControllers();
-builder.Services.AddScoped<IUserService, UserService>();
-builder.Services.AddScoped<IUserRepository, UserRepository>();
 
-builder.Services.AddScoped<IAuthService, AuthService>();
-builder.Services.AddScoped<IAuthRepository, AuthRepository>();
+builder.Services.AddRepositories();
+builder.Services.AddServices();
+builder.Services.AddSwaggerDocumentation();
+builder.Services.AddCorsPolicy();
 
-builder.Services.AddScoped<IRoleRepository, RoleRepository>();
-builder.Services.AddScoped<IRoleService, RoleService>();
-
-builder.Services.AddScoped<IDepartmentRepository, DepartmentRepository>();
-builder.Services.AddScoped<IDepartmentService, DepartmentService>();
-
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
-{
-    c.SwaggerDoc("v1", new OpenApiInfo { Title = "UserIdentity API", Version = "v1" });
-
-    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    {
-        In = ParameterLocation.Header,
-        Description = "Por favor, insira no campo a palavra 'Bearer' seguida de um espaço e o token JWT",
-        Name = "Authorization",
-        Type = SecuritySchemeType.ApiKey,
-        Scheme = "Bearer"
-    });
-
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement()
-    {
-        {
-          new OpenApiSecurityScheme
-          {
-            Reference = new OpenApiReference
-            {
-              Type = ReferenceType.SecurityScheme,
-              Id = "Bearer"
-            }
-          },
-          new string[] {}
-        }
-    });
-});
+var jwtSettings = builder.Configuration.GetSection("Jwt").Get<JwtSettings>();
+var key = Encoding.UTF8.GetBytes(jwtSettings.Key);
 
 builder.Services.AddAuthentication(options =>
 {
@@ -74,11 +40,11 @@ builder.Services.AddAuthentication(options =>
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuerSigningKey = true,
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"])),
-        ValidateIssuer = false, 
-        ValidateAudience = false, 
+        IssuerSigningKey = new SymmetricSecurityKey(key),
+        ValidateIssuer = false,
+        ValidateAudience = false,
         ValidateLifetime = true,
-        ClockSkew = TimeSpan.Zero 
+        ClockSkew = TimeSpan.Zero
     };
 });
 
@@ -89,9 +55,24 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+else
+{
+    app.UseExceptionHandler(errorApp =>
+    {
+        errorApp.Run(async context =>
+        {
+            context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+            context.Response.ContentType = "application/json";
+            await context.Response.WriteAsJsonAsync(new { message = "Ocorreu um erro inesperado." });
+        });
+    });
+}
 
 app.UseHttpsRedirection();
+app.UseCors("Default");
 app.UseAuthentication();
 app.UseAuthorization();
+
 app.MapControllers();
+
 app.Run();

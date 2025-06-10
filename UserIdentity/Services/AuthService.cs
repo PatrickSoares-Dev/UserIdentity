@@ -4,25 +4,26 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using ConferenciaTelecall.Repositories.Interfaces;
 using ConferenciaTelecall.Models.Entities;
 using ConferenciaTelecall.Services.Interfaces;
 using ConferenciaTelecall.Enums;
 using UserIdentity.Models;
+using ConferenciaTelecall.Models.Options;
 
 namespace ConferenciaTelecall.Services
 {
     public class AuthService : IAuthService
     {
         private readonly IAuthRepository _repository;
-        private readonly IConfiguration _configuration;
+        private readonly JwtSettings _jwtSettings;
 
-        public AuthService(IAuthRepository repository, IConfiguration configuration)
+        public AuthService(IAuthRepository repository, IOptions<JwtSettings> jwtOptions)
         {
             _repository = repository;
-            _configuration = configuration;
+            _jwtSettings = jwtOptions.Value;
         }
 
         public async Task<LoginResult> LoginAsync(string loginUsuario, string senha)
@@ -69,7 +70,7 @@ namespace ConferenciaTelecall.Services
 
         public JwtTokenResult GenerateJwtToken(IEnumerable<Claim> claims)
         {
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.Key));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
             var expiration = DateTime.UtcNow.AddHours(6);
 
